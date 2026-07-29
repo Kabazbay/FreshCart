@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: freshcart
+      POSTGRES_PASSWORD: freshcart
+      POSTGRES_DB: freshcart
+    volumes:
+      - freshcart-db-data:/var/lib/postgresql/data
+      - ../checkout-api/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - freshcart-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U freshcart"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  checkout-api:
+    build:
+      context: ../checkout-api
+      dockerfile: ../_instructor-only/checkout-api.Dockerfile
+    environment:
+      DATABASE_URL: postgres://freshcart:freshcart@postgres:5432/freshcart
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - freshcart-net
+    restart: unless-stopped
+
+  storefront:
+    build:
+      context: ../storefront
+      dockerfile: ../_instructor-only/storefront.Dockerfile
+      args:
+        VITE_API_BASE_URL: ""
+    ports:
+      - "8080:8080"
+    depends_on:
+      - checkout-api
+    networks:
+      - freshcart-net
+    restart: unless-stopped
+
+networks:
+  freshcart-net:
+    driver: bridge
+
+volumes:
+  freshcart-db-data:
