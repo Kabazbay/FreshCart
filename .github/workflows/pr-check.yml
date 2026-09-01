@@ -1,0 +1,27 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        # npm ci is used in CI/CD instead of npm install for strict adherence to package-lock.json
+        run: npm ci
+
+      - name: Run Build
+        # Assumes a build script exists in package.json. If it is purely a typecheck, this might be 'npm run typecheck'
+        run: npm run build
