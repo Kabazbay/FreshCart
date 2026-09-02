@@ -35,7 +35,7 @@ jobs:
           load: true
 
       - name: Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: '${{ vars.DOCKERHUB_USERNAME }}/freshcart-checkout-api:${{ github.sha }}'
           format: 'table'
