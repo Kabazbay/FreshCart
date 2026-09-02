@@ -8,6 +8,11 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    # This tells the runner to execute all 'run' commands inside the checkout-api folder
+    defaults:
+      run:
+        working-directory: ./checkout-api
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -17,11 +22,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: './checkout-api/package-lock.json' # Specifies where the lock file is for caching
 
       - name: Install Dependencies
-        # npm ci is used in CI/CD instead of npm install for strict adherence to package-lock.json
         run: npm ci
 
       - name: Run Build
-        # Assumes a build script exists in package.json. If it is purely a typecheck, this might be 'npm run typecheck'
+        # If there's no build step, you can change this to 'npm run test' or 'npm run typecheck' based on your package.json
         run: npm run build
