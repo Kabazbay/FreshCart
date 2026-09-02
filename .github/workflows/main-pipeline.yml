@@ -43,7 +43,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Push Docker Image to Hub
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./checkout-api
           file: ./checkout-api/Dockerfile
