@@ -1,0 +1,83 @@
+name: Build, Scan, and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-scan-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./checkout-api
+          file: ./checkout-api/Dockerfile
+          push: false
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/freshcart-checkout-api:${{ github.sha }}
+          load: true
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@0.16.0
+        with:
+          image-ref: '${{ vars.DOCKERHUB_USERNAME }}/freshcart-checkout-api:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+
+      - name: Push Docker Image to Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: ./checkout-api
+          file: ./checkout-api/Dockerfile
+          push: true
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/freshcart-checkout-api:${{ github.sha }}
+
+  deploy-staging:
+    needs: build-scan-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Update Staging VM Startup Script and Reset
+        run: |
+          # Fetch current startup script metadata and replace the old image tag with $GITHUB_SHA
+          CURRENT_SCRIPT=$(gcloud compute instances describe freshcart-dev-backend \
+            --zone=us-central1-a \
+            --project=freshcart-terraform-week5 \
+            --format='value(metadata.items[no-show-in-console])')
+
+          NEW_SCRIPT=$(echo "$CURRENT_SCRIPT" | sed 's|kabazbay/freshcart-checkout-api:.*|kabazbay/freshcart-checkout-api:${{ github.sha }}|g')
+
+          gcloud compute instances add-metadata freshcart-dev-backend \
+            --zone=us-central1-a \
+            --project=freshcart-terraform-week5 \
+            --metadata="startup-script=$NEW_SCRIPT"
+
+          gcloud compute instances reset freshcart-dev-backend \
+            --zone=us-central1-a \
+            --project=freshcart-terraform-week5
